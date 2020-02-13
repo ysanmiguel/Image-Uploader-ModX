@@ -1,0 +1,123 @@
+<?php
+// initialize output;
+$output = true;
+
+// get the current user name to create the file name as  
+$userName = $modx->user->get('username');
+// Use it on registration to create user folder for the profile picture
+$fieldname = $hook->getValue('username');
+// if $fieldname exist (only on registration) use that field to create folder
+if ($fieldname) {
+    $userName = $fieldname;
+}
+
+// valid extensions
+$ext_array = array('jpg', 'jpeg', 'png');
+ 
+// create unique path for this form submission
+$uploadpath = 'assets/web/userfiles/'. $userName . '/';
+
+// you can create some logic to automatically
+// generate some type of folder structure here.
+// the path that you specify will automatically
+// be created by the script if it doesn't already
+// exist.
+
+// EXAMPLE:
+// this would put all file uploads into a new,
+// unique folder every day.
+// $uploadpath = 'assets/'uploads/'.date('Y-m-d').'/';
+ 
+// get full path to unique folder
+$target_path = $modx->config['base_path'] . $uploadpath;
+
+// get uploaded file names:
+$submittedfiles = array_keys($_FILES);
+
+// Pthumb parameters
+$width = 300;
+$height = 300;
+$options = "w=$width&h=$height&zc=1";
+
+ 
+// loop through files
+foreach ($submittedfiles as $sf) {
+ 
+    // Get Filename and make sure its good.
+    $filename = basename( $_FILES[$sf]['name'] );
+ 
+    // Get file's extension
+    $ext = pathinfo($filename, PATHINFO_EXTENSION);
+    $ext = mb_strtolower($ext); // case insensitive
+
+    // is the file name empty (no file uploaded)
+    if($filename != '') {
+         
+        // is this the right type of file?
+        if(in_array($ext, $ext_array)) {
+
+            // clean up file name and make it unique
+            $filename = mb_strtolower($filename); // to lowercase
+            $filename = strtolower(preg_replace("/[^A-Za-z0-9.]+/i", "-", $filename)); // spaces to underscores and weird characters
+            $filename = date("Y-m-d_G-i-s_") . $filename; // add date & time
+
+            // full path to new file
+            $myTarget = $uploadpath . $filename;
+             
+            // create directory to move file into if it doesn't exist
+            mkdir($target_path, 0755, true);
+
+            // is the file moved to the proper folder successfully?
+            if(move_uploaded_file($_FILES[$sf]['tmp_name'], $myTarget)) {
+                // set a new placeholder with the new full path (if you need it in subsequent hooks)
+                //$modx->setPlaceholder('fi.'.$sf.'_new', $myTarget);
+
+
+
+                // Resize and crop image using Pthumbs 
+                $thumbnail = $modx->runSnippet("phpthumbof",array('input' => $myTarget, 'options' => $options));
+                // remove the first "/" for thumbnail path
+                $thumbnail_strip = ltrim($thumbnail, '/');
+                // include modx base path to the pthumbs file path
+                $thumbnail_fullPath = $modx->config['base_path'] . $thumbnail_strip; 
+                // get only the file name
+                $thumbnail_name = str_replace("/assets/components/phpthumbof/cache/", "", $thumbnail);
+                // target to move the file from pthumbs
+                $thumb_newTarget = $uploadpath . $thumbnail_name;
+                // Move the pthumb resized file to the user folder
+                if (copy($thumbnail_fullPath,$thumb_newTarget)) {
+                    // delete the Pthumb cache file
+                    unlink($thumbnail_fullPath);
+                    // delete the original uploaded file
+                    unlink($myTarget);
+                }
+
+
+
+				//$modx->setPlaceholder('target', $myTarget);
+				$hook->setValue($sf, $thumb_newTarget);
+
+				// set the permissions on the file
+                if (!chmod($myTarget, 0644)) { /*some debug function*/ }
+                 
+            } else {
+                // File not uploaded
+                $errorMsg = 'There was a problem uploading the file.';
+                $hook->addError($sf, $errorMsg);
+                $output = false; // generate submission error
+            }
+         
+        } else {
+            // File type not allowed
+            $errorMsg = 'Type of file not allowed.';
+            $hook->addError($sf, $errorMsg);
+            $output = false; // generate submission error
+        }
+     
+    // if no file, don't error, but return blank
+    } else {
+        $hook->setValue($sf, '');
+    }
+}
+ 
+return $output;
