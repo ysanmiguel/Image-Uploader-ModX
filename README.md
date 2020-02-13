@@ -19,7 +19,7 @@ Before start it's necessary that you have the **pThumb** ModX extra already inst
 ```
 &preHooks=`imageUpload`
 ```
-4. The new file will be saved in **/assets/web/userfiles/~USERNAME~/**<br>
+4. The new file will be saved in **/assets/web/userfiles/-USERNAME-/**<br>
 and saved in the **User Photo** field inside the user profile in the **Users** area in the manager.
 5. To display the image path just use the placeholder [[+photo]]
 6. use the snippet [[!Profile]] in the same page in case the [[+photo]] placeholder is not retreaving the image path.
